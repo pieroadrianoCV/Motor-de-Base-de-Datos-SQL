@@ -8,6 +8,8 @@
 *.class
 *.jar
 main
+/db_engine
+/build/
 
 # Archivos de datos generados por el motor (evita subir las páginas y tuplas de prueba)
 *.dat
