@@ -4,6 +4,7 @@ TARGET = db_engine
 SRC = src/main.cpp
 TEST_TARGET := build/tests
 TEST_SOURCES := $(wildcard tests/test_*.cpp)
+BENCHMARK_TARGET := build/benchmark
 
 all: $(TARGET)
 
@@ -20,4 +21,11 @@ $(TEST_TARGET): $(TEST_SOURCES) tests/test_framework.hpp tests/fixtures.hpp
 test: $(TEST_TARGET)
 	./$(TEST_TARGET)
 
-.PHONY: all clean test
+$(BENCHMARK_TARGET): src/benchmark_main.cpp src/benchmark/BulkLoader.hpp src/benchmark/ScanBenchmark.hpp
+	mkdir -p build
+	$(CXX) $(CXXFLAGS) -Isrc src/benchmark_main.cpp -o $@
+
+benchmark: $(BENCHMARK_TARGET)
+	./$(BENCHMARK_TARGET) $(ARGS)
+
+.PHONY: all clean test benchmark
