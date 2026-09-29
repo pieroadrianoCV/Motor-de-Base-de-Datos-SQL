@@ -1,2 +1,46 @@
-/build/
+# Compilados y ejecutables (C, C++, Java, etc.)
+*.o
+*.obj
+*.out
+*.exe
+*.dll
+*.so
+*.class
+*.jar
+main
 /db_engine
+/build/
+
+# Archivos de datos generados por el motor (evita subir las páginas y tuplas de prueba)
+*.dat
+*.db
+*.bin
+*.log
+*.ibd
+
+# Archivos temporales y de depuración
+*.tmp
+*.bak
+*.swp
+core
+vgcore.*
+
+# Entornos de desarrollo y editores
+.vscode/
+.idea/
+*.suo
+*.user
+*.sln
+*.cbp
+*.depend
+
+# Python (si usan scripts auxiliares para carga masiva o pruebas)
+__pycache__/
+*.pyc
+.env
+venv/
+env/
+
+# Sistema Operativo
+.DS_Store
+Thumbs.db
