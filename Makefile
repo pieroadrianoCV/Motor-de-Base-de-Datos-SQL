@@ -15,7 +15,7 @@ clean:
 
 $(TEST_TARGET): $(TEST_SOURCES) tests/test_framework.hpp tests/fixtures.hpp
 	mkdir -p build
-	$(CXX) $(CXXFLAGS) -Itests $(TEST_SOURCES) -o $@
+	$(CXX) $(CXXFLAGS) -Isrc -Itests $(TEST_SOURCES) -o $@
 
 test: $(TEST_TARGET)
 	./$(TEST_TARGET)
