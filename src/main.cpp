@@ -1,43 +1,100 @@
+#include "benchmark/ScanBenchmark.hpp"
+#include "demo/DemoEngine.hpp"
+
+#include <cstddef>
+#include <iomanip>
 #include <iostream>
+#include <limits>
+#include <stdexcept>
+#include <string>
 
-using namespace std;
+namespace {
 
-void mostrarMenu() {
-    cout << "\n=== MOTOR DE BASE DE DATOS ===" << endl;
-    cout << "1. Carga e insercion masiva de datos (Bulk Load)" << endl;
-    cout << "2. Mostrar visualizacion y log del Node Splitting" << endl;
-    cout << "3. Ejecutar comparativa: Index Scan vs Full Table Scan" << endl;
-    cout << "4. Salir" << endl;
-    cout << "=======================================" << endl;
-    cout << "Seleccione una opcion: ";
+void showMenu()
+{
+  std::cout << "\n=== MOTOR DE BASE DE DATOS — FASE 1 ===\n"
+            << "1. Carga e insercion masiva\n"
+            << "2. Mostrar splits y estructura del B-Tree\n"
+            << "3. Comparar Index Scan vs Full Table Scan\n"
+            << "4. Salir\n"
+            << "========================================\n"
+            << "Seleccione una opcion: ";
 }
 
-int main() {
-    int opcion;
-    bool salir = false;
+std::size_t readPositive(const std::string& prompt)
+{
+  std::cout << prompt;
+  std::size_t value = 0;
+  if (!(std::cin >> value) || value == 0) {
+    std::cin.clear();
+    std::cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
+    throw std::invalid_argument("se esperaba un entero positivo");
+  }
+  return value;
+}
 
-    while (!salir) {
-        mostrarMenu();
-        cin >> opcion;
+void printMetric(const char* name, const db::benchmark::ScanMetrics& metric)
+{
+  std::cout << std::left << std::setw(20) << name << std::right
+            << std::setw(14) << db::benchmark::milliseconds(metric.elapsed)
+            << std::setw(16) << metric.pageAccesses
+            << std::setw(14) << metric.found << '\n';
+}
 
-        switch (opcion) {
-            case 1:
-                cout << "\n[Log] Iniciando carga masiva de datos..." << endl;
-                break;
-            case 2:
-                cout << "\n[Log] Visualizando crecimiento del arbol B..." << endl;
-                break;
-            case 3:
-                cout << "\n[Log] Comparando metricas de tiempo e I/O de paginas..." << endl;
-                break;
-            case 4:
-                salir = true;
-                break;
-            default:
-                cout << "\nOpcion no valida." << endl;
-                break;
-        }
+}  // namespace
+
+int main()
+{
+  db::demo::DemoEngine demo;
+  bool running = true;
+  while (running) {
+    showMenu();
+    int option = 0;
+    if (!(std::cin >> option)) {
+      std::cout << "\nEntrada finalizada.\n";
+      break;
     }
 
-    return 0;
+    try {
+      switch (option) {
+      case 1: {
+        const auto count = readPositive("Cantidad de registros: ");
+        const auto degree = readPositive("Grado minimo t (>= 2): ");
+        const auto tuples = db::demo::DemoEngine::makeWorkload(count);
+        const auto summary = demo.load(tuples, degree, 256);
+        std::cout << "\n[Carga completada]\n"
+                  << "Tuplas insertadas: " << summary.load.inserted << '\n'
+                  << "Tuplas rechazadas: " << summary.load.rejected << '\n'
+                  << "Paginas de datos: " << summary.pages << '\n'
+                  << "Altura del B-Tree: " << summary.height << '\n'
+                  << "Splits: " << summary.splits << '\n'
+                  << "Tiempo: " << std::fixed << std::setprecision(3)
+                  << db::benchmark::milliseconds(summary.load.elapsed)
+                  << " ms\n";
+        break;
+      }
+      case 2:
+        std::cout << '\n' << demo.splitReport() << demo.treeReport();
+        break;
+      case 3: {
+        const auto queries = readPositive("Cantidad de consultas: ");
+        const auto result = demo.benchmarkScans(queries);
+        std::cout << '\n' << std::left << std::setw(20) << "Metodo" << std::right
+                  << std::setw(14) << "Tiempo (ms)" << std::setw(16)
+                  << "Paginas I/O" << std::setw(14) << "Encontrados" << '\n';
+        printMetric("Index Scan", result.indexScan);
+        printMetric("Full Table Scan", result.fullTableScan);
+        break;
+      }
+      case 4:
+        running = false;
+        break;
+      default:
+        std::cout << "Opcion no valida.\n";
+      }
+    } catch (const std::exception& error) {
+      std::cout << "Error: " << error.what() << '\n';
+    }
+  }
+  return 0;
 }

@@ -28,6 +28,58 @@ struct ComparisonResult {
     ScanMetrics fullTableScan;
 };
 
+template <typename Records, typename Keys, typename IndexLookup, typename KeyOf,
+          typename RowIdOf, typename PageOf>
+ComparisonResult comparePagedScans(const Records& records, const Keys& keys,
+                                   IndexLookup indexLookup, KeyOf keyOf,
+                                   RowIdOf rowIdOf, PageOf pageOf) {
+    ComparisonResult result;
+    result.indexScan.queries = keys.size();
+    result.fullTableScan.queries = keys.size();
+
+    auto started = std::chrono::steady_clock::now();
+    for (const auto& key : keys) {
+        const auto lookup = indexLookup(key);
+        result.indexScan.pageAccesses += lookup.pageAccesses;
+        if (lookup.found) {
+            ++result.indexScan.found;
+            result.indexScan.checksum += static_cast<std::uint64_t>(lookup.rowId);
+        }
+    }
+    result.indexScan.elapsed = std::chrono::duration_cast<std::chrono::nanoseconds>(
+        std::chrono::steady_clock::now() - started);
+
+    started = std::chrono::steady_clock::now();
+    for (const auto& key : keys) {
+        std::uint64_t previousPage = 0;
+        bool hasPreviousPage = false;
+        for (const auto& record : records) {
+            const auto currentPage = static_cast<std::uint64_t>(pageOf(record));
+            if (!hasPreviousPage || currentPage != previousPage) {
+                ++result.fullTableScan.pageAccesses;
+                previousPage = currentPage;
+                hasPreviousPage = true;
+            }
+            if (keyOf(record) == key) {
+                ++result.fullTableScan.found;
+                result.fullTableScan.checksum +=
+                    static_cast<std::uint64_t>(rowIdOf(record));
+                break;
+            }
+        }
+    }
+    result.fullTableScan.elapsed =
+        std::chrono::duration_cast<std::chrono::nanoseconds>(
+            std::chrono::steady_clock::now() - started);
+
+    if (result.indexScan.found != result.fullTableScan.found ||
+        result.indexScan.checksum != result.fullTableScan.checksum) {
+        throw std::logic_error(
+            "Index Scan y Full Table Scan produjeron resultados distintos");
+    }
+    return result;
+}
+
 // Los callbacks desacoplan el benchmark de las clases BTree y Record concretas:
 // indexLookup(key) devuelve RowID y accesos; keyOf/rowIdOf leen cada registro.
 template <typename Records, typename Keys, typename IndexLookup, typename KeyOf,
@@ -80,4 +132,3 @@ inline double milliseconds(std::chrono::nanoseconds duration) {
 }
 
 }  // namespace db::benchmark
-
