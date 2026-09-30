@@ -34,12 +34,13 @@ TEST_CASE(real_btree_scan_and_real_storage_scan_return_identical_results) {
     const auto storedRecords = records.scan();
     const std::vector<std::int64_t> keys{0, 50, 500, 999, 1'500};
 
-    const auto result = db::benchmark::compareScans(
+    const auto result = db::benchmark::comparePagedScans(
         storedRecords, keys, [&](auto key) { return index.search(key); },
         [](const storage::Record& record) {
             return db::index::keyFromTuple(record.tuple, 0);
         },
-        [](const storage::Record& record) { return record.id; });
+        [](const storage::Record& record) { return record.id; },
+        [](const storage::Record& record) { return storage::pageID(record.id); });
 
     EXPECT_EQ(result.indexScan.found, 4U);
     EXPECT_EQ(result.fullTableScan.found, 4U);
@@ -58,12 +59,13 @@ TEST_CASE(real_scan_benchmark_reports_absent_keys_consistently) {
     const auto storedRecords = records.scan();
     const std::vector<std::int64_t> keys{5, 30};
 
-    const auto result = db::benchmark::compareScans(
+    const auto result = db::benchmark::comparePagedScans(
         storedRecords, keys, [&](auto key) { return index.search(key); },
         [](const storage::Record& record) {
             return db::index::keyFromTuple(record.tuple, 0);
         },
-        [](const storage::Record& record) { return record.id; });
+        [](const storage::Record& record) { return record.id; },
+        [](const storage::Record& record) { return storage::pageID(record.id); });
 
     EXPECT_EQ(result.indexScan.found, 0U);
     EXPECT_EQ(result.fullTableScan.found, 0U);

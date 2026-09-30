@@ -79,12 +79,15 @@ int main(int argc, char** argv) {
         }
 
         const auto storedRecords = records.scan();
-        const auto comparison = db::benchmark::compareScans(
+        const auto comparison = db::benchmark::comparePagedScans(
             storedRecords, keys, [&](auto key) { return index.search(key); },
             [](const storage::Record& record) {
                 return db::index::keyFromTuple(record.tuple, 0);
             },
-            [](const storage::Record& record) { return record.id; });
+            [](const storage::Record& record) { return record.id; },
+            [](const storage::Record& record) {
+                return storage::pageID(record.id);
+            });
 
         std::cout << "B-Tree real: t=" << index.degree()
                   << ", altura=" << index.height() << '\n';
@@ -93,7 +96,7 @@ int main(int argc, char** argv) {
                   << db::benchmark::milliseconds(load.elapsed) << " ms\n\n";
         std::cout << std::left << std::setw(20) << "Metodo" << std::right
                   << std::setw(14) << "Tiempo (ms)" << std::setw(18)
-                  << "Accesos" << std::setw(14) << "Encontrados" << '\n';
+                  << "Paginas I/O" << std::setw(14) << "Encontrados" << '\n';
         printMetrics("Index Scan", comparison.indexScan);
         printMetrics("Full Table Scan", comparison.fullTableScan);
         return 0;
