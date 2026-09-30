@@ -78,16 +78,21 @@ public:
       throw std::invalid_argument("se requieren datos y al menos una consulta");
     }
 
+    const auto records = records_->scan();
+    std::vector<index::Key> availableKeys;
+    availableKeys.reserve(records.size());
+    for (const auto& record : records) {
+      availableKeys.push_back(index::keyFromTuple(record.tuple, 0));
+    }
     std::mt19937 generator(73);
-    std::uniform_int_distribution<std::int64_t> distribution(
-      0, static_cast<std::int64_t>(index_->size() - 1));
+    std::uniform_int_distribution<std::size_t> distribution(
+      0, availableKeys.size() - 1);
     std::vector<std::int64_t> keys;
     keys.reserve(queryCount);
     for (std::size_t query = 0; query < queryCount; ++query) {
-      keys.push_back(distribution(generator));
+      keys.push_back(availableKeys[distribution(generator)]);
     }
 
-    const auto records = records_->scan();
     return benchmark::comparePagedScans(
       records, keys, [this](auto key) { return index_->search(key); },
       [](const storage::Record& record) {
@@ -117,7 +122,8 @@ public:
     return output.str();
   }
 
-  [[nodiscard]] std::string treeReport(std::size_t maximumNodes = 32) const
+  [[nodiscard]] std::string treeReport(std::size_t maximumNodes = 32,
+                                       std::size_t maximumKeysPerNode = 12) const
   {
     requireLoaded();
     std::ostringstream output;
@@ -133,10 +139,12 @@ public:
         output << (level == 0 ? "" : "\n") << "Nivel " << level << ": ";
       }
       output << '[';
-      for (std::size_t key = 0; key < node->entries().size(); ++key) {
+      const auto shownKeys = std::min(maximumKeysPerNode, node->entries().size());
+      for (std::size_t key = 0; key < shownKeys; ++key) {
         if (key != 0) output << ',';
         output << node->entries()[key].key;
       }
+      if (shownKeys < node->entries().size()) output << ",...";
       output << "] ";
       ++shown;
       for (const auto& child : node->children()) {
