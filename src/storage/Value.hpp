@@ -7,9 +7,9 @@
 namespace storage {
 
 using Value = std::variant<
-    std::int64_t,
-    double,
-    std::string
+  std::int64_t,
+  double,
+  std::string
 >;
 
 }
