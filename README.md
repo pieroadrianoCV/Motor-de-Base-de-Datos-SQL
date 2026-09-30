@@ -19,6 +19,9 @@ make
 ./db_engine
 ```
 
+El menú ejecuta el flujo completo: carga masiva, log y visualización de splits,
+y comparación entre Index Scan y Full Table Scan.
+
 ## Pruebas automatizadas
 
 ```bash
@@ -45,11 +48,12 @@ El tamaño y el grado mínimo se pueden ajustar con
 make benchmark ARGS="20000 1000 32"
 ```
 
-El benchmark inserta cada tupla en `RecordManager`, asigna su RowID y registra
+El benchmark inserta cada tupla serializada en páginas de `RecordManager`,
+asigna su RowID y registra
 la pareja clave–RowID mediante `BTree::insert`. Luego compara llamadas reales a
 `BTree::search` contra el recorrido de los registros devueltos por
 `RecordManager::scan`. El reporte muestra altura, tiempo de carga, tiempo de
-búsqueda, resultados y accesos a nodos o registros. También compara el número
+búsqueda, resultados y accesos a páginas lógicas. También compara el número
 de resultados y un checksum de los RowIDs; la ejecución falla si ambos métodos
 discrepan.
 
@@ -66,6 +70,20 @@ discrepan.
 El ejecutable usa `t=64` por defecto. Las pruebas también cubren `t=2`, `t=3`,
 `t=8` y `t=32`, comprobando que todos los nodos no raíz tengan entre `t-1` y
 `2t-1` claves y que todas las hojas terminen a la misma profundidad.
+
+## Diseño
+
+- Las páginas contienen 128 slots por defecto.
+- Cada slot almacena la representación binaria producida por `TupleSerializer`.
+- Un RowID de 64 bits codifica `PageID` en los 32 bits altos y `SlotID + 1` en
+  los 32 bits bajos.
+- Cada nodo del B-Tree se contabiliza como una página lógica del índice.
+- El grado predeterminado `t=64` permite hasta 127 claves y 128 hijos por nodo,
+  reduciendo la altura para cargas grandes.
+
+La explicación completa está en [docs/architecture.md](docs/architecture.md) y
+el guion sugerido para la exposición en
+[docs/presentation.md](docs/presentation.md).
 
 ## Limpieza
 
