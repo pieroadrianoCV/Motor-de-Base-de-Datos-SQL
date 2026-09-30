@@ -25,9 +25,10 @@ make
 make test
 ```
 
-La suite incluye casos de carga desordenada de 10 000 registros, claves
-duplicadas, carga vacía, validación de invariantes de balance y equivalencia
-entre Index Scan y Full Table Scan.
+La suite usa las implementaciones reales de `RecordManager`, `RowID` y `BTree`.
+Incluye carga desordenada de 10 000 tuplas, claves duplicadas, carga vacía,
+splits de raíz, varios grados mínimos, validación independiente de ocupación y
+profundidad, y equivalencia entre Index Scan y Full Table Scan.
 
 ## Benchmark
 
@@ -37,33 +38,34 @@ La ejecución predeterminada carga 100 000 registros y realiza 5 000 consultas:
 make benchmark
 ```
 
-El tamaño se puede ajustar con `ARGS="registros consultas"`:
+El tamaño y el grado mínimo se pueden ajustar con
+`ARGS="registros consultas grado"`:
 
 ```bash
-make benchmark ARGS="20000 1000"
+make benchmark ARGS="20000 1000 32"
 ```
 
-El reporte muestra tiempo de carga, tiempo de búsqueda y cantidad de accesos.
-También compara el número de resultados y un checksum de los RowIDs; la
-ejecución falla si los métodos discrepan. El adaptador ordenado de
-`src/benchmark_main.cpp` permite ejecutar la demostración antes de integrar el
-B-Tree definitivo y debe reemplazarse por `BTree::search` al integrar.
+El benchmark inserta cada tupla en `RecordManager`, asigna su RowID y registra
+la pareja clave–RowID mediante `BTree::insert`. Luego compara llamadas reales a
+`BTree::search` contra el recorrido de los registros devueltos por
+`RecordManager::scan`. El reporte muestra altura, tiempo de carga, tiempo de
+búsqueda, resultados y accesos a nodos o registros. También compara el número
+de resultados y un checksum de los RowIDs; la ejecución falla si ambos métodos
+discrepan.
 
-## Contrato para integrar el B-Tree
+## Carga masiva integrada
 
-El código en `src/benchmark/` usa callbacks para no imponer nombres ni tipos al
-módulo `src/index/`:
+`loadIndexedTuples` conecta los módulos de la fase en este orden:
 
-- El callback de inserción recibe un registro y devuelve `true` si se insertó.
-- El validador devuelve `true` cuando se cumplen las invariantes del árbol.
-- La búsqueda devuelve `LookupResult<RowId>` con el resultado y los accesos a
-  páginas o nodos.
+1. Extrae una clave `int64_t` de la columna indexada.
+2. Rechaza claves duplicadas antes de crear un registro.
+3. Almacena la tupla y obtiene el RowID asignado por `RecordManager`.
+4. Inserta la clave y el RowID en el B-Tree.
+5. Ejecuta `BTree::validate` al final y, opcionalmente, cada N intentos.
 
-El cargador ejecuta el validador al final y, opcionalmente, cada N intentos. La
-integración debe comprobar que todas las hojas estén a igual profundidad, que
-cada nodo (salvo la raíz) tenga entre `t-1` y `2t-1` claves y que los hijos y
-claves estén ordenados. El grado mínimo pertenece a la configuración de
-`BTree`; debe ser `t >= 2` y documentarse el valor elegido por el equipo.
+El ejecutable usa `t=64` por defecto. Las pruebas también cubren `t=2`, `t=3`,
+`t=8` y `t=32`, comprobando que todos los nodos no raíz tengan entre `t-1` y
+`2t-1` claves y que todas las hojas terminen a la misma profundidad.
 
 ## Limpieza
 
