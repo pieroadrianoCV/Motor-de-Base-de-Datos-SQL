@@ -4,6 +4,7 @@
 #include "../index/BTreeNode.hpp"
 
 #include <cstddef>
+#include <functional>
 #include <memory>
 #include <optional>
 #include <stdexcept>
@@ -15,6 +16,14 @@ namespace db::index {
     bool found{false};
     RowID rowId{storage::INVALID_ROW_ID};
     std::size_t pageAccesses{0};
+  };
+
+  struct SplitEvent {
+    Key promotedKey{};
+    std::size_t parentKeyCount{0};
+    std::size_t leftKeyCount{0};
+    std::size_t rightKeyCount{0};
+    std::size_t treeHeight{0};
   };
 
   class BTree {
@@ -30,7 +39,12 @@ namespace db::index {
       std::size_t maxKeys() const { return 2 * t_ - 1; }
       std::size_t minKeys() const { return t_ - 1; }
       std::size_t size() const { return size_; }
+      std::size_t splitCount() const { return splitCount_; }
       bool empty() const { return size_ == 0; }
+
+      void setSplitObserver(std::function<void(const SplitEvent&)> observer) {
+        splitObserver_ = std::move(observer);
+      }
 
       std::size_t height() const {
         std::size_t levels = 1;
@@ -135,6 +149,16 @@ namespace db::index {
         parent->children().insert(
             parent->children().begin() + childIndex + 1,
             std::move(newChild));
+
+        ++splitCount_;
+        if (splitObserver_) {
+          splitObserver_(SplitEvent{
+              middleEntry.key,
+              parent->entries().size(),
+              parent->children()[childIndex]->entries().size(),
+              parent->children()[childIndex + 1]->entries().size(),
+              height()});
+        }
       }
 
       void insertNonFull(BTreeNode* node, Key key, RowID rowId) {
@@ -207,7 +231,9 @@ namespace db::index {
 
       std::size_t t_;
       std::size_t size_{0};
+      std::size_t splitCount_{0};
       std::unique_ptr<BTreeNode> root_;
+      std::function<void(const SplitEvent&)> splitObserver_;
   };
 
 }
