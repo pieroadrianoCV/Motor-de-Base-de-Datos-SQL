@@ -18,7 +18,7 @@ $(TARGET): $(SRC) $(INDEX_HEADERS) $(STORAGE_HEADERS)
 clean:
 	rm -rf $(TARGET) build
 
-$(TEST_TARGET): $(TEST_SOURCES) tests/test_framework.hpp tests/fixtures.hpp $(INDEX_HEADERS) $(STORAGE_HEADERS) $(BENCHMARK_HEADERS)
+$(TEST_TARGET): $(TEST_SOURCES) tests/test_framework.hpp $(INDEX_HEADERS) $(STORAGE_HEADERS) $(BENCHMARK_HEADERS)
 	mkdir -p build
 	$(CXX) $(CXXFLAGS) -Isrc -Itests $(TEST_SOURCES) -o $@
 

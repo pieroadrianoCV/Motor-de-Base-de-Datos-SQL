@@ -6,6 +6,7 @@
 #include <cstdint>
 #include <optional>
 #include <unordered_map>
+#include <vector>
 
 namespace storage {
 
@@ -39,7 +40,7 @@ public:
   [[nodiscard]]
   bool exists(RowID id) const
   {
-    return m_records.contains(id);
+    return m_records.find(id) != m_records.end();
   }
 
   bool update(RowID id, Tuple tuple)
@@ -72,6 +73,19 @@ public:
     return m_records.empty();
   }
 
+  [[nodiscard]]
+  std::vector<Record> scan() const
+  {
+    std::vector<Record> records;
+    records.reserve(m_records.size());
+
+    for (const auto& entry : m_records) {
+      records.push_back(entry.second);
+    }
+
+    return records;
+  }
+
   void clear()
   {
     m_records.clear();
@@ -84,4 +98,3 @@ private:
 };
 
 }
-
