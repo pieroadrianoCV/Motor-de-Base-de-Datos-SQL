@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Record.hpp"
+#include "TupleSerializer.hpp"
 
 #include <cstddef>
 #include <optional>
@@ -35,19 +36,27 @@ public:
 
   [[nodiscard]] std::optional<Record> get(RowID id) const
   {
-    const auto* record = find(id);
-    return record == nullptr ? std::nullopt : std::optional<Record>{*record};
+    const auto* slot = findSlot(id);
+    if (slot == nullptr || !slot->has_value()) {
+      return std::nullopt;
+    }
+    return Record{slot->value().id,
+                  TupleSerializer::deserialize(slot->value().bytes)};
   }
 
-  [[nodiscard]] bool exists(RowID id) const { return find(id) != nullptr; }
+  [[nodiscard]] bool exists(RowID id) const
+  {
+    const auto* slot = findSlot(id);
+    return slot != nullptr && slot->has_value();
+  }
 
   bool update(RowID id, Tuple tuple)
   {
-    auto* record = find(id);
-    if (record == nullptr) {
+    auto* slot = findSlot(id);
+    if (slot == nullptr || !slot->has_value()) {
       return false;
     }
-    record->tuple = std::move(tuple);
+    slot->value().bytes = TupleSerializer::serialize(tuple);
     return true;
   }
 
@@ -69,7 +78,8 @@ public:
     for (const auto& page : m_pages) {
       for (const auto& slot : page) {
         if (slot.has_value()) {
-          records.push_back(*slot);
+          records.push_back(Record{
+            slot->id, TupleSerializer::deserialize(slot->bytes)});
         }
       }
     }
@@ -89,7 +99,12 @@ public:
   [[nodiscard]] std::size_t pageCapacity() const { return m_pageCapacity; }
 
 private:
-  using Slot = std::optional<Record>;
+  struct StoredRecord {
+    RowID id;
+    TupleSerializer::Buffer bytes;
+  };
+
+  using Slot = std::optional<StoredRecord>;
   using Page = std::vector<Slot>;
 
   RowID occupy(std::size_t pageIndex, std::size_t slotIndex, Tuple tuple)
@@ -97,7 +112,8 @@ private:
     const auto page = static_cast<PageID>(pageIndex + 1);
     const auto slot = static_cast<SlotID>(slotIndex);
     const RowID id = makeRowID(page, slot);
-    m_pages[pageIndex][slotIndex] = Record{id, std::move(tuple)};
+    m_pages[pageIndex][slotIndex] =
+      StoredRecord{id, TupleSerializer::serialize(tuple)};
     ++m_size;
     return id;
   }
@@ -118,17 +134,6 @@ private:
   const Slot* findSlot(RowID id) const
   {
     return const_cast<PageManager*>(this)->findSlot(id);
-  }
-
-  Record* find(RowID id)
-  {
-    auto* slot = findSlot(id);
-    return slot == nullptr || !slot->has_value() ? nullptr : &slot->value();
-  }
-
-  const Record* find(RowID id) const
-  {
-    return const_cast<PageManager*>(this)->find(id);
   }
 
   std::size_t m_pageCapacity;
