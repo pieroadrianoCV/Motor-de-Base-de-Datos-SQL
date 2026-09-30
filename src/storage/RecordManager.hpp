@@ -1,100 +1,48 @@
 #pragma once
 
-#include "Record.hpp"
+#include "PageManager.hpp"
 
 #include <cstddef>
-#include <cstdint>
 #include <optional>
-#include <unordered_map>
+#include <utility>
 #include <vector>
 
 namespace storage {
 
 class RecordManager {
 public:
-  RecordManager() = default;
-
-  RowID insert(Tuple tuple)
+  explicit RecordManager(
+    std::size_t pageCapacity = PageManager::DEFAULT_PAGE_CAPACITY)
+    : m_pages(pageCapacity)
   {
-    const RowID id = m_nextRowID++;
-
-    m_records.emplace(
-      id,
-      Record{id, std::move(tuple)});
-
-    return id;
   }
 
-  [[nodiscard]]
-  std::optional<Record> get(RowID id) const
+  RowID insert(Tuple tuple) { return m_pages.insert(std::move(tuple)); }
+
+  [[nodiscard]] std::optional<Record> get(RowID id) const
   {
-    const auto it = m_records.find(id);
-
-    if (it == m_records.end()) {
-      return std::nullopt;
-    }
-
-    return it->second;
+    return m_pages.get(id);
   }
 
-  [[nodiscard]]
-  bool exists(RowID id) const
-  {
-    return m_records.find(id) != m_records.end();
-  }
+  [[nodiscard]] bool exists(RowID id) const { return m_pages.exists(id); }
 
   bool update(RowID id, Tuple tuple)
   {
-    const auto it = m_records.find(id);
-
-    if (it == m_records.end()) {
-      return false;
-    }
-
-    it->second.tuple = std::move(tuple);
-
-    return true;
+    return m_pages.update(id, std::move(tuple));
   }
 
-  bool erase(RowID id)
-  {
-    return m_records.erase(id) > 0;
-  }
+  bool erase(RowID id) { return m_pages.erase(id); }
 
-  [[nodiscard]]
-  std::size_t size() const
-  {
-    return m_records.size();
-  }
+  [[nodiscard]] std::size_t size() const { return m_pages.size(); }
+  [[nodiscard]] bool empty() const { return m_pages.empty(); }
+  [[nodiscard]] std::vector<Record> scan() const { return m_pages.scan(); }
+  [[nodiscard]] std::size_t pageCount() const { return m_pages.pageCount(); }
+  [[nodiscard]] std::size_t pageCapacity() const { return m_pages.pageCapacity(); }
 
-  [[nodiscard]]
-  bool empty() const
-  {
-    return m_records.empty();
-  }
-
-  [[nodiscard]]
-  std::vector<Record> scan() const
-  {
-    std::vector<Record> records;
-    records.reserve(m_records.size());
-
-    for (const auto& entry : m_records) {
-      records.push_back(entry.second);
-    }
-
-    return records;
-  }
-
-  void clear()
-  {
-    m_records.clear();
-    m_nextRowID = 1;
-  }
+  void clear() { m_pages.clear(); }
 
 private:
-  std::unordered_map<RowID, Record> m_records;
-  RowID m_nextRowID{1};
+  PageManager m_pages;
 };
 
-}
+}  // namespace storage
