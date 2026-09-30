@@ -9,10 +9,11 @@ BENCHMARK_TARGET := build/benchmark
 INDEX_HEADERS := $(wildcard src/index/*.hpp)
 STORAGE_HEADERS := $(wildcard src/storage/*.hpp)
 BENCHMARK_HEADERS := $(wildcard src/benchmark/*.hpp)
+DEMO_HEADERS := $(wildcard src/demo/*.hpp)
 
 all: $(TARGET)
 
-$(TARGET): $(SRC) $(INDEX_HEADERS) $(STORAGE_HEADERS)
+$(TARGET): $(SRC) $(INDEX_HEADERS) $(STORAGE_HEADERS) $(BENCHMARK_HEADERS) $(DEMO_HEADERS)
 	$(CXX) $(CXXFLAGS) -Isrc -o $(TARGET) $(SRC)
 
 clean:
