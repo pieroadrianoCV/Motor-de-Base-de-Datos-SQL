@@ -72,10 +72,24 @@ namespace db::index {
         return count == size_;
       }
 
-      bool insert(Key, RowID) {
-        throw std::logic_error(
-            "BTree::insert pendiente: lo implementa Integrante 3 "
-            "(feature/btree-balance)");
+      bool insert(Key key, RowID rowId) {
+        if (contains(key)) {
+          return false;
+        }
+
+        if (root_->isFull(t_)) {
+          auto newRoot = std::make_unique<BTreeNode>(false);
+
+          newRoot->children().push_back(std::move(root_));
+          root_ = std::move(newRoot);
+
+          splitChild(root_.get(), 0);
+        }
+
+        insertNonFull(root_.get(), key, rowId);
+        ++size_;
+
+        return true;
       }
 
       BTreeNode* root() { return root_.get(); }
@@ -91,6 +105,63 @@ namespace db::index {
 
     private:
       using Bound = std::optional<Key>;
+
+      void splitChild(BTreeNode* parent, std::size_t childIndex) {
+        BTreeNode* fullChild = parent->children()[childIndex].get();
+
+        auto newChild = std::make_unique<BTreeNode>(fullChild->isLeaf());
+
+        Entry middleEntry = fullChild->entries()[t_ - 1];
+
+        for (std::size_t i = t_; i < fullChild->entries().size(); ++i) {
+          newChild->entries().push_back(fullChild->entries()[i]);
+        }
+
+        if (!fullChild->isLeaf()) {
+          for (std::size_t i = t_; i < fullChild->children().size(); ++i) {
+            newChild->children().push_back(
+                std::move(fullChild->children()[i]));
+          }
+
+          fullChild->children().resize(t_);
+        }
+
+        fullChild->entries().resize(t_ - 1);
+
+        parent->entries().insert(
+            parent->entries().begin() + childIndex,
+            middleEntry);
+
+        parent->children().insert(
+            parent->children().begin() + childIndex + 1,
+            std::move(newChild));
+      }
+
+      void insertNonFull(BTreeNode* node, Key key, RowID rowId) {
+        auto position = node->locate(key);
+
+        if (node->isLeaf()) {
+          node->entries().insert(
+              node->entries().begin() + position.index,
+              Entry{key, rowId});
+          return;
+        }
+
+        std::size_t childIndex = position.index;
+
+        if (node->children()[childIndex]->isFull(t_)) {
+          splitChild(node, childIndex);
+
+          if (key > node->entries()[childIndex].key) {
+            ++childIndex;
+          }
+        }
+
+        insertNonFull(
+            node->children()[childIndex].get(),
+            key,
+            rowId);
+      }
 
       bool validateNode(const BTreeNode* node, Bound low, Bound high,
           std::size_t depth, std::size_t& leafDepth,
