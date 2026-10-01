@@ -22,7 +22,7 @@ make test
 Ejecutar:
 
 ```bash
-./db_engine
+./db_engine data/demo.bin
 ```
 
 Secuencia sugerida:
@@ -33,6 +33,8 @@ Secuencia sugerida:
 4. Opción 3: ejecutar 5 000 consultas.
 5. Comparar tiempo y páginas lógicas del índice contra el recorrido completo.
 6. Explicar que el checksum impide comparar resultados diferentes.
+7. Cerrar y volver a ejecutar el mismo comando para mostrar la recuperación de
+   los registros; usar la opción 4 para consultar una clave puntual.
 
 Como ejecución no interactiva adicional:
 

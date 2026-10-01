@@ -40,4 +40,6 @@ run: $(TARGET)
 clean-data:
 	rm -f $(DATA_FILE) $(DATA_FILE).tmp
 
-.PHONY: all clean clean-data test benchmark run
+clean-all: clean clean-data
+
+.PHONY: all clean clean-all clean-data test benchmark run

@@ -20,7 +20,19 @@ make
 ```
 
 El menú ejecuta el flujo completo: carga masiva, log y visualización de splits,
-y comparación entre Index Scan y Full Table Scan.
+y comparación entre Index Scan y Full Table Scan. Para conservar los datos
+entre ejecuciones, indique un archivo:
+
+```bash
+./db_engine data/database.bin
+```
+
+Si el archivo existe, se carga y reconstruye el índice automáticamente. Si no
+existe, se crea después de la primera carga masiva. También se puede usar:
+
+```bash
+make run DATA_FILE=data/database.bin
+```
 
 ## Pruebas automatizadas
 
@@ -80,6 +92,9 @@ El ejecutable usa `t=64` por defecto. Las pruebas también cubren `t=2`, `t=3`,
 - Cada nodo del B-Tree se contabiliza como una página lógica del índice.
 - El grado predeterminado `t=64` permite hasta 127 claves y 128 hijos por nodo,
   reduciendo la altura para cargas grandes.
+- El archivo persistente conserva la versión del formato, el grado `t`, las
+  tuplas serializadas y un checksum de integridad. El B-Tree se reconstruye al
+  abrir para no persistir punteros ni detalles dependientes del proceso.
 
 La explicación completa está en [docs/architecture.md](docs/architecture.md) y
 el guion sugerido para la exposición en
@@ -89,4 +104,17 @@ el guion sugerido para la exposición en
 
 ```bash
 make clean
+```
+
+`make clean` elimina únicamente ejecutables y archivos de compilación. Para
+eliminar explícitamente la base de datos:
+
+```bash
+make clean-data DATA_FILE=data/database.bin
+```
+
+Para eliminar ambos:
+
+```bash
+make clean-all DATA_FILE=data/database.bin
 ```

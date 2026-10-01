@@ -78,6 +78,28 @@ Para las métricas:
 - ambos métodos deben devolver igual cantidad de resultados y checksum de
   RowIDs, o el benchmark termina con error.
 
+## Persistencia
+
+`DatabaseFile` almacena una imagen portable con esta estructura:
+
+```text
+magic "EDADB001"
+version uint32
+grado t uint64
+cantidad de tuplas uint64
+  └─ tamaño uint64 + bytes de TupleSerializer (repetido)
+checksum FNV-1a uint64
+```
+
+La escritura se realiza primero sobre `archivo.tmp` y luego se renombra, para
+no dejar una base parcialmente escrita si ocurre un error. Al abrir se validan
+firma, versión, metadatos, tamaños, tuplas, datos sobrantes y checksum.
+
+Se persisten datos y configuración, no punteros ni memoria del árbol. Al iniciar
+una nueva instancia, las tuplas vuelven a páginas y el B-Tree se reconstruye con
+el mismo grado. Esto mantiene el formato independiente de direcciones de
+memoria y de detalles internos de `std::vector` o `unique_ptr`.
+
 ## Componentes
 
 ```text
