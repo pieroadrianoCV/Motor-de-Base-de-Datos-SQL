@@ -2,6 +2,7 @@
 
 #include "demo/DemoEngine.hpp"
 
+#include <filesystem>
 #include <string>
 
 TEST_CASE(demo_engine_runs_the_complete_phase_one_flow) {
@@ -46,4 +47,31 @@ TEST_CASE(demo_requires_bulk_load_before_reports_or_benchmark) {
     }
     EXPECT_TRUE(reportRejected);
     EXPECT_TRUE(benchmarkRejected);
+}
+
+TEST_CASE(demo_persists_reopens_and_queries_records) {
+    const auto path =
+        std::filesystem::temp_directory_path() / "eda_phase1_demo.bin";
+    std::error_code ignored;
+    std::filesystem::remove(path, ignored);
+
+    {
+        db::demo::DemoEngine writer;
+        const auto tuples = db::demo::DemoEngine::makeWorkload(500);
+        (void)writer.load(tuples, 8);
+        writer.saveFile(path);
+    }
+
+    db::demo::DemoEngine reader;
+    const auto summary = reader.loadFile(path);
+    EXPECT_EQ(summary.load.inserted, 500U);
+    EXPECT_EQ(reader.index().degree(), 8U);
+    const auto found = reader.find(42);
+    EXPECT_TRUE(found.found);
+    EXPECT_TRUE(found.tuple.has_value());
+    EXPECT_EQ(db::index::keyFromTuple(*found.tuple, 0), 42);
+    EXPECT_TRUE(found.pageId != storage::INVALID_PAGE_ID);
+    EXPECT_TRUE(reader.find(1'000).found == false);
+
+    std::filesystem::remove(path, ignored);
 }
