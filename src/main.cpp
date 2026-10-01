@@ -2,11 +2,14 @@
 #include "demo/DemoEngine.hpp"
 
 #include <cstddef>
+#include <cstdint>
+#include <filesystem>
 #include <iomanip>
 #include <iostream>
 #include <limits>
 #include <stdexcept>
 #include <string>
+#include <variant>
 
 namespace {
 
@@ -16,9 +19,32 @@ void showMenu()
             << "1. Carga e insercion masiva\n"
             << "2. Mostrar splits y estructura del B-Tree\n"
             << "3. Comparar Index Scan vs Full Table Scan\n"
-            << "4. Salir\n"
+            << "4. Buscar registro por clave\n"
+            << "5. Salir\n"
             << "========================================\n"
             << "Seleccione una opcion: ";
+}
+
+std::int64_t readKey(const std::string& prompt)
+{
+  std::cout << prompt;
+  std::int64_t value = 0;
+  if (!(std::cin >> value)) {
+    std::cin.clear();
+    std::cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
+    throw std::invalid_argument("se esperaba una clave entera");
+  }
+  return value;
+}
+
+void printTuple(const storage::Tuple& tuple)
+{
+  std::cout << '[';
+  for (std::size_t position = 0; position < tuple.size(); ++position) {
+    if (position != 0) std::cout << ", ";
+    std::visit([](const auto& value) { std::cout << value; }, tuple[position]);
+  }
+  std::cout << ']';
 }
 
 std::size_t readPositive(const std::string& prompt)
@@ -43,9 +69,33 @@ void printMetric(const char* name, const db::benchmark::ScanMetrics& metric)
 
 }  // namespace
 
-int main()
+int main(int argc, char** argv)
 {
+  if (argc > 2) {
+    std::cerr << "Uso: " << argv[0] << " [archivo.bin]\n";
+    return 1;
+  }
+
   db::demo::DemoEngine demo;
+  const std::filesystem::path dataFile = argc == 2 ? argv[1] : "";
+  if (!dataFile.empty()) {
+    if (std::filesystem::exists(dataFile)) {
+      try {
+        const auto summary = demo.loadFile(dataFile, 256);
+        std::cout << "Base de datos recuperada de " << dataFile << "\n"
+                  << "Registros: " << summary.load.inserted
+                  << ", paginas: " << summary.pages
+                  << ", altura: " << summary.height << "\n";
+      } catch (const std::exception& error) {
+        std::cerr << "No se pudo abrir la base de datos: " << error.what()
+                  << '\n';
+        return 1;
+      }
+    } else {
+      std::cout << "Se creara una nueva base de datos en " << dataFile << "\n";
+    }
+  }
+
   bool running = true;
   while (running) {
     showMenu();
@@ -62,6 +112,9 @@ int main()
         const auto degree = readPositive("Grado minimo t (>= 2): ");
         const auto tuples = db::demo::DemoEngine::makeWorkload(count);
         const auto summary = demo.load(tuples, degree, 256);
+        if (!dataFile.empty()) {
+          demo.saveFile(dataFile);
+        }
         std::cout << "\n[Carga completada]\n"
                   << "Tuplas insertadas: " << summary.load.inserted << '\n'
                   << "Tuplas rechazadas: " << summary.load.rejected << '\n'
@@ -71,6 +124,9 @@ int main()
                   << "Tiempo: " << std::fixed << std::setprecision(3)
                   << db::benchmark::milliseconds(summary.load.elapsed)
                   << " ms\n";
+        if (!dataFile.empty()) {
+          std::cout << "Guardado en: " << dataFile << '\n';
+        }
         break;
       }
       case 2:
@@ -86,7 +142,25 @@ int main()
         printMetric("Full Table Scan", result.fullTableScan);
         break;
       }
-      case 4:
+      case 4: {
+        const auto key = readKey("Clave a buscar: ");
+        const auto result = demo.find(key);
+        if (!result.found) {
+          std::cout << "Clave " << key << " no encontrada. Nodos visitados: "
+                    << result.indexPageAccesses << '\n';
+          break;
+        }
+        std::cout << "Registro encontrado\n"
+                  << "RowID: " << result.rowId << '\n'
+                  << "PageID: " << result.pageId << '\n'
+                  << "SlotID: " << result.slotId << '\n'
+                  << "Nodos del indice visitados: "
+                  << result.indexPageAccesses << "\nTupla: ";
+        printTuple(*result.tuple);
+        std::cout << '\n';
+        break;
+      }
+      case 5:
         running = false;
         break;
       default:

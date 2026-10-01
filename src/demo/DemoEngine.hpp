@@ -5,11 +5,13 @@
 #include "index/BTree.hpp"
 #include "index/KeyExtractor.hpp"
 #include "storage/RecordManager.hpp"
+#include "storage/DatabaseFile.hpp"
 
 #include <algorithm>
 #include <cstddef>
 #include <cstdint>
 #include <memory>
+#include <optional>
 #include <queue>
 #include <random>
 #include <sstream>
@@ -24,6 +26,15 @@ struct LoadSummary {
   std::size_t pages{0};
   std::size_t height{0};
   std::size_t splits{0};
+};
+
+struct QueryResult {
+  bool found{false};
+  storage::RowID rowId{storage::INVALID_ROW_ID};
+  storage::PageID pageId{storage::INVALID_PAGE_ID};
+  storage::SlotID slotId{0};
+  std::size_t indexPageAccesses{0};
+  std::optional<storage::Tuple> tuple;
 };
 
 class DemoEngine {
@@ -69,6 +80,41 @@ public:
   [[nodiscard]] bool loaded() const
   {
     return records_ != nullptr && index_ != nullptr;
+  }
+
+  LoadSummary loadFile(const std::filesystem::path& path,
+                       std::size_t validationInterval = 0)
+  {
+    const auto image = storage::DatabaseFile::load(path);
+    return load(image.tuples, image.degree, validationInterval);
+  }
+
+  void saveFile(const std::filesystem::path& path) const
+  {
+    requireLoaded();
+    std::vector<storage::Tuple> tuples;
+    const auto records = records_->scan();
+    tuples.reserve(records.size());
+    for (const auto& record : records) {
+      tuples.push_back(record.tuple);
+    }
+    storage::DatabaseFile::save(path, index_->degree(), tuples);
+  }
+
+  [[nodiscard]] QueryResult find(index::Key key) const
+  {
+    requireLoaded();
+    const auto lookup = index_->search(key);
+    if (!lookup.found) {
+      return {false, storage::INVALID_ROW_ID, storage::INVALID_PAGE_ID, 0,
+              lookup.pageAccesses, std::nullopt};
+    }
+    const auto record = records_->get(lookup.rowId);
+    if (!record.has_value()) {
+      throw std::logic_error("el indice referencia un RowID inexistente");
+    }
+    return {true, lookup.rowId, storage::pageID(lookup.rowId),
+            storage::slotID(lookup.rowId), lookup.pageAccesses, record->tuple};
   }
 
   benchmark::ComparisonResult benchmarkScans(std::size_t queryCount) const
